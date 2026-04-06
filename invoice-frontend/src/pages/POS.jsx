@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { searchProductsApi, getProductByBarcodeApi } from '../api/productApi';
+import { getProductsApi, getProductByBarcodeApi } from '../api/productApi';
 import { getCustomerByMobileApi } from '../api/customerApi';
 import { posCheckoutApi } from '../api/posApi';
 import { downloadInvoicePdfApi } from '../api/invoiceApi';
@@ -8,7 +8,6 @@ import Badge  from '../components/common/Badge';
 import Button from '../components/common/Button';
 import Loader from '../components/common/Loader';
 import { formatCurrency } from '../utils/helpers';
-import { useDebounce }    from '../hooks/useDebounce';
 
 const PAYMENT_MODES = ['CASH', 'UPI', 'CARD'];
 const PAY_ICONS     = { CASH: '💵', UPI: '📱', CARD: '💳' };
@@ -22,41 +21,72 @@ const POS = () => {
   const [customerName,  setCustomerName]  = useState('');
   const [customer,      setCustomer]      = useState(null);
   const [mobileStatus,  setMobileStatus]  = useState('');
+  
   const [searchQuery,   setSearchQuery]   = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [searching,     setSearching]     = useState(false);
+  const [allProducts,   setAllProducts]   = useState([]);
   const [showDropdown,  setShowDropdown]  = useState(false);
+  const [highlightedIdx,setHighlightedIdx]= useState(-1);
+  const [isLoading,     setIsLoading]     = useState(true);
+
   const [checking,      setChecking]      = useState(false);
   const [successInvoice,setSuccessInvoice]= useState(null);
   const [showSuccess,   setShowSuccess]   = useState(false);
 
   const searchRef  = useRef(null);
   const mobileRef  = useRef(null);
-  const debouncedQ = useDebounce(searchQuery, 350);
 
   useEffect(() => {
-    if (debouncedQ.length < 2) { setSearchResults([]); setShowDropdown(false); return; }
     (async () => {
-      setSearching(true);
       try {
-        const res = await searchProductsApi(debouncedQ, 0, 8);
-        setSearchResults(res.data.data.content || []);
-        setShowDropdown(true);
-      } catch { setSearchResults([]); }
-      finally  { setSearching(false); }
+        const res = await getProductsApi(0, 1000);
+        setAllProducts(res.data.data.content || []);
+      } catch (err) {
+        toast.error('Failed to load products');
+      } finally {
+        setIsLoading(false);
+      }
     })();
-  }, [debouncedQ]);
+  }, []);
 
-  const handleBarcodeEnter = async (e) => {
-    if (e.key !== 'Enter') return;
-    const val = searchQuery.trim();
-    if (!val) return;
-    try {
-      const res = await getProductByBarcodeApi(val);
-      addToCart(res.data.data);
-      setSearchQuery(''); setShowDropdown(false);
-      toast.success(`${res.data.data.name} added`);
-    } catch {}
+  const filteredProducts = allProducts.filter(p => 
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    p.sku.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleKeyDown = async (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIdx(prev => (prev < filteredProducts.length - 1 ? prev + 1 : prev));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIdx(prev => (prev > 0 ? prev - 1 : -1));
+    } else if (e.key === 'Escape') {
+      setShowDropdown(false);
+      setHighlightedIdx(-1);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (showDropdown && highlightedIdx >= 0 && filteredProducts[highlightedIdx]) {
+        addToCart(filteredProducts[highlightedIdx]);
+      } else {
+        const val = searchQuery.trim();
+        if (!val) return;
+        try {
+          const res = await getProductByBarcodeApi(val);
+          if (res.data.data) {
+            addToCart(res.data.data);
+            toast.success(`${res.data.data.name} added`);
+          }
+        } catch {
+          // Keep showing dropdown if barcode fails
+        }
+      }
+    }
+  };
+
+  const handleSearchChange = (e) => {
+    setSearchQuery(e.target.value);
+    setHighlightedIdx(-1);
+    setShowDropdown(true);
   };
 
   const handleMobileLookup = async () => {
@@ -157,26 +187,32 @@ const POS = () => {
             <input
               ref={searchRef}
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              onKeyDown={handleBarcodeEnter}
+              onChange={handleSearchChange}
+              onKeyDown={handleKeyDown}
+              onFocus={() => setShowDropdown(true)}
               placeholder="Search product or scan barcode + Enter..."
               className="flex-1 text-sm outline-none text-gray-900 placeholder-gray-400"
               autoComplete="off"
             />
-            {searching && <Loader size={16} />}
+            {isLoading && <Loader size={16} />}
             {searchQuery && (
-              <button onClick={() => { setSearchQuery(''); setShowDropdown(false); }}
-                className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+              <button 
+                onClick={() => { setSearchQuery(''); setShowDropdown(false); setHighlightedIdx(-1); }}
+                className="text-gray-400 hover:text-gray-600 text-sm"
+              >✕</button>
             )}
           </div>
 
           {/* Dropdown */}
-          {showDropdown && searchResults.length > 0 && (
+          {showDropdown && filteredProducts.length > 0 && (
             <div className="absolute left-0 right-0 top-full bg-white border border-gray-200 border-t-0 rounded-b-xl shadow-xl z-50 max-h-72 overflow-y-auto">
-              {searchResults.map(prod => (
+              {filteredProducts.map((prod, idx) => (
                 <div key={prod.id}
-                  className="flex justify-between items-center px-4 py-3 hover:bg-indigo-50 cursor-pointer border-b border-gray-50 transition-colors"
+                  className={`flex justify-between items-center px-4 py-3 cursor-pointer border-b border-gray-50 transition-colors ${
+                    highlightedIdx === idx ? 'bg-indigo-50' : 'hover:bg-indigo-50'
+                  }`}
                   onClick={() => addToCart(prod)}
+                  onMouseEnter={() => setHighlightedIdx(idx)}
                 >
                   <div>
                     <div className="text-sm font-semibold text-gray-900">{prod.name}</div>
@@ -192,7 +228,7 @@ const POS = () => {
               ))}
             </div>
           )}
-          {showDropdown && searchResults.length === 0 && !searching && (
+          {showDropdown && filteredProducts.length === 0 && !isLoading && (
             <div className="px-4 py-3 text-sm text-gray-400 text-center border-t border-gray-100">
               No products found for "{searchQuery}"
             </div>
