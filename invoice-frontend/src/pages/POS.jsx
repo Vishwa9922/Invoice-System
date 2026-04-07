@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { getProductsApi, getProductByBarcodeApi } from '../api/productApi';
-import { getCustomerByMobileApi } from '../api/customerApi';
+import { searchCustomersApi } from '../api/customerApi';
+// import { getCustomerByMobileApi } from '../api/customerApi';
 import { posCheckoutApi } from '../api/posApi';
 import { downloadInvoicePdfApi } from '../api/invoiceApi';
 import Badge  from '../components/common/Badge';
@@ -48,6 +49,37 @@ const POS = () => {
     })();
   }, []);
 
+  // New function Added for search customer by name in New bill generatation
+
+  const handleCustomerSearch = async () => {
+  if (!customerName || customerName.trim() === '') {
+    toast.error('Customer name is required');
+    return;
+  }
+
+  try {
+    const res = await searchCustomersApi(customerName);
+    const list = res.data.data.content;
+
+    if (list.length > 0) {
+      const found = list[0];
+
+      setCustomer(found);
+      setCustomerName(found.name || '');
+      setMobile(found.mobileNumber || '');
+      setMobileStatus('found');
+
+      toast.success(`Found: ${found.name}`);
+    } else {
+      setCustomer(null);
+      setMobileStatus('new');
+      toast('New customer — will be created', { icon: '👤' });
+    }
+  } catch {
+    toast.error('Search failed');
+  }
+};
+
   const filteredProducts = allProducts.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
     p.sku.toLowerCase().includes(searchQuery.toLowerCase())
@@ -89,21 +121,21 @@ const POS = () => {
     setShowDropdown(true);
   };
 
-  const handleMobileLookup = async () => {
-    if (!/^[6-9]\d{9}$/.test(mobile)) { toast.error('Enter valid 10-digit mobile'); return; }
-    try {
-      const res = await getCustomerByMobileApi(mobile);
-      if (res.data.data) {
-        setCustomer(res.data.data);
-        setCustomerName(res.data.data.name || '');
-        setMobileStatus('found');
-        toast.success(`Found: ${res.data.data.name || 'No name'}`);
-      } else {
-        setCustomer(null); setMobileStatus('new');
-        toast('New customer — will be created on checkout', { icon: '👤' });
-      }
-    } catch { setMobileStatus('new'); }
-  };
+  // const handleMobileLookup = async () => {
+  //   if (!/^[6-9]\d{9}$/.test(mobile)) { toast.error('Enter valid 10-digit mobile'); return; }
+  //   try {
+  //     const res = await getCustomerByMobileApi(mobile);
+  //     if (res.data.data) {
+  //       setCustomer(res.data.data);
+  //       setCustomerName(res.data.data.name || '');
+  //       setMobileStatus('found');
+  //       toast.success(`Found: ${res.data.data.name || 'No name'}`);
+  //     } else {
+  //       setCustomer(null); setMobileStatus('new');
+  //       toast('New customer — will be created on checkout', { icon: '👤' });
+  //     }
+  //   } catch { setMobileStatus('new'); }
+  // };
 
   const addToCart = (product) => {
     if (!product.active) { toast.error('Product is inactive'); return; }
@@ -141,7 +173,13 @@ const POS = () => {
   const grandTotal = Math.max(0, subtotal + totalTax - (Number(discount) || 0));
 
   const handleCheckout = async () => {
-    if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) { toast.error('Enter valid mobile'); mobileRef.current?.focus(); return; }
+    // if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) { toast.error('Enter valid mobile'); mobileRef.current?.focus(); return; }
+    // new add replace above 
+    if (!customerName || customerName.trim() === '') {
+  toast.error('Customer name is required');
+  return;
+}
+
     if (cart.length === 0) { toast.error('Cart is empty'); return; }
     setChecking(true);
     try {
@@ -313,7 +351,7 @@ const POS = () => {
                 ${mobileStatus==='found' ? 'border-emerald-400 bg-emerald-50' :
                   mobileStatus==='new'   ? 'border-amber-400 bg-amber-50'    : 'border-gray-300'}`}
             />
-            <Button size="sm" variant="secondary" onClick={handleMobileLookup}>Find</Button>
+            <Button size="sm" variant="secondary" onClick={handleCustomerSearch}>Find</Button>
           </div>
           {mobileStatus === 'found' && (
             <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2 mb-2">
@@ -326,7 +364,7 @@ const POS = () => {
             </div>
           )}
           <input value={customerName} onChange={e => setCustomerName(e.target.value)}
-            placeholder="Customer name (optional)"
+            placeholder="Customer name *"
             className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg outline-none focus:border-indigo-500" />
         </div>
 
