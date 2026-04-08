@@ -1,5 +1,6 @@
 package com.example.invoice.domain;
 
+import com.example.invoice.domain.enums.Unit;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
@@ -7,6 +8,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -34,10 +36,15 @@ public class Product
     @Column(unique = true, length = 50)
     private String barcode;
 
+    // Selling price
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal price;
 
-    // Tax percentage e.g. 18.00 for 18% GST
+    // Purchase price (cost price) — NEW
+    @Column(precision = 10, scale = 2)
+    @Builder.Default
+    private BigDecimal purchasePrice = BigDecimal.ZERO;
+
     @Column(nullable = false, precision = 5, scale = 2)
     @Builder.Default
     private BigDecimal taxPercent = BigDecimal.ZERO;
@@ -45,6 +52,24 @@ public class Product
     @Column(nullable = false)
     @Builder.Default
     private Integer stock = 0;
+
+    // Low stock alert threshold — NEW
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer lowStockThreshold = 10;
+
+    // Unit of measurement — NEW
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    @Builder.Default
+    private Unit unit = Unit.PCS;
+
+    // Expiry date — NEW
+    private LocalDate expiryDate;
+
+    // Batch number — NEW
+    @Column(length = 50)
+    private String batchNumber;
 
     @Column(nullable = false)
     @Builder.Default

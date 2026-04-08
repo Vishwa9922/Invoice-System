@@ -87,7 +87,7 @@ const Customers = () => {
   const validate = () => {
     const e = {};
     if (!form.mobileNumber?.trim())           e.mobileNumber = 'Mobile number is required';
-    else if (!/^[6-9]\d{9}$/.test(form.mobileNumber)) e.mobileNumber = 'Enter valid 10-digit mobile (6-9)';
+    else if (!/^[7-9]\d{9}$/.test(form.mobileNumber)) e.mobileNumber = 'Enter valid 10-digit mobile (6-9)';
     if (form.email && !/\S+@\S+\.\S+/.test(form.email)) e.email = 'Enter valid email';
     return e;
   };

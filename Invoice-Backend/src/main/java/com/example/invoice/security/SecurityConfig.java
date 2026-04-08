@@ -29,24 +29,21 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> {})
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/api/auth/login",
-                                "/api/auth/register",   // cashier register — public
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/api-docs/**",
-                                "/v3/api-docs/**"
-                        ).permitAll()
-                        .requestMatchers("/api/auth/register/admin").hasRole("ADMIN")
-                        .requestMatchers("/api/reports/**").hasRole("ADMIN")
-                        // Cashier + Admin
-                        .requestMatchers(
-                                "/api/categories/**",
-                                "/api/products/**",
-                                "/api/customers/**",
-                                "/api/pos/**",
-                                "/api/invoices/**"
-                        ).hasAnyRole("ADMIN", "CASHIER")
+                        .requestMatchers("/api/auth/**", "/swagger-ui/**",
+                                "/api-docs/**", "/v3/api-docs/**").permitAll()
+
+                        // Admin only
+                        .requestMatchers("/api/reports/**",
+                                "/api/settings/**").hasRole("ADMIN")
+
+                        // Admin + Cashier
+                        .requestMatchers("/api/categories/**", "/api/products/**",
+                                "/api/customers/**",  "/api/pos/**",
+                                "/api/invoices/**",   "/api/suppliers/**",
+                                "/api/purchases/**",  "/api/expenses/**",
+                                "/api/payments/**",   "/api/returns/**",
+                                "/api/stock/**").hasAnyRole("ADMIN", "CASHIER")
+
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex

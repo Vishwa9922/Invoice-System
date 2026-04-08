@@ -2,6 +2,7 @@ package com.example.invoice.service.impl;
 
 import com.example.invoice.domain.*;
 import com.example.invoice.domain.enums.InvoiceStatus;
+import com.example.invoice.domain.enums.StockMovementType;
 import com.example.invoice.dto.request.InvoiceItemRequest;
 import com.example.invoice.dto.request.InvoiceRequest;
 import com.example.invoice.dto.response.InvoiceResponse;
@@ -14,6 +15,7 @@ import com.example.invoice.repository.CustomerRepository;
 import com.example.invoice.repository.InvoiceRepository;
 import com.example.invoice.repository.ProductRepository;
 import com.example.invoice.service.interfaces.InvoiceService;
+import com.example.invoice.service.interfaces.StockMovementService;
 import com.example.invoice.util.DateUtils;
 import com.example.invoice.util.InvoiceNumberGenerator;
 import com.example.invoice.util.TaxCalculator;
@@ -40,6 +42,7 @@ public class InvoiceServiceImpl implements InvoiceService
     private final ProductRepository productRepository;
     private final InvoiceMapper invoiceMapper;
     private final InvoiceNumberGenerator invoiceNumberGenerator;
+    private final StockMovementService stockMovementService;
 
     @Override
     public InvoiceResponse create(InvoiceRequest request) {
@@ -91,6 +94,23 @@ public class InvoiceServiceImpl implements InvoiceService
         );
 
         Invoice saved = invoiceRepository.save(invoice);
+        items.forEach(item ->
+                productRepository.findById(item.getProduct().getId()).ifPresent(p -> {
+                    int before = p.getStock();
+                    p.setStock(p.getStock() - item.getQuantity());
+                    productRepository.save(p);
+                    // Log stock movement — SALE
+                    stockMovementService.logMovement(
+                            p, StockMovementType.SALE,
+                            -item.getQuantity(),
+                            saved.getId(),
+                            "Sale - " + saved.getInvoiceNumber(),
+                            "system"
+                    );
+                })
+        );
+
+
         log.info("Invoice created: {}", saved.getInvoiceNumber());
         return invoiceMapper.toResponse(saved);
     }
@@ -146,7 +166,22 @@ public class InvoiceServiceImpl implements InvoiceService
         }
         invoice.setStatus(InvoiceStatus.CANCELLED);
         invoiceRepository.save(invoice);
-        log.info("Invoice cancelled: {}", invoice.getInvoiceNumber());
+
+        // Restore stock for each item
+        invoice.getItems().forEach(item ->
+                productRepository.findById(item.getProduct().getId()).ifPresent(p -> {
+                    stockMovementService.logMovement(
+                            p, StockMovementType.RETURN,
+                            item.getQuantity(),
+                            invoice.getId(),
+                            "Invoice cancelled - " + invoice.getInvoiceNumber(),
+                            "system"
+                    );
+                    p.setStock(p.getStock() + item.getQuantity());
+                    productRepository.save(p);
+                })
+        );
+        log.info("Invoice cancelled + stock restored: {}", invoice.getInvoiceNumber());
     }
 
     // ── Private helpers ──────────────────────────────────────────────────────
@@ -193,4 +228,6 @@ public class InvoiceServiceImpl implements InvoiceService
                 .last(page.isLast())
                 .build();
     }
+
+
 }

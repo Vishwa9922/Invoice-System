@@ -5,6 +5,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
+
 @Component
 @RequiredArgsConstructor
 public class InvoiceNumberGenerator
@@ -18,13 +20,15 @@ public class InvoiceNumberGenerator
     private final InvoiceRepository invoiceRepository;
 
     public String generate() {
+        int year = LocalDate.now().getYear();
+
         return invoiceRepository.findLastInvoiceNumber()
                 .map(last -> {
-                    // Extract number from e.g. "INV-1042"
+                    // Format: INV-2026-00001
                     String[] parts = last.split("-");
                     int next = Integer.parseInt(parts[parts.length - 1]) + 1;
-                    return prefix + "-" + next;
+                    return String.format("%s-%d-%05d", prefix, year, next);
                 })
-                .orElse(prefix + "-" + startNumber);
+                .orElse(String.format("%s-%d-%05d", prefix, year, startNumber));
     }
 }

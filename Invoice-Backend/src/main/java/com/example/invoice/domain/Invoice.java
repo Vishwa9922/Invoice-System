@@ -2,6 +2,7 @@ package com.example.invoice.domain;
 
 import com.example.invoice.domain.enums.PaymentMode;
 import com.example.invoice.domain.enums.InvoiceStatus;
+import com.example.invoice.domain.enums.PaymentStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
@@ -69,4 +70,13 @@ public class Invoice
 
     @LastModifiedDate
     private LocalDateTime updatedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    @Builder.Default
+    private PaymentStatus paymentStatus = PaymentStatus.PENDING;
+
+    @Column(precision = 10, scale = 2)
+    @Builder.Default
+    private BigDecimal paidAmount = BigDecimal.ZERO;
 }

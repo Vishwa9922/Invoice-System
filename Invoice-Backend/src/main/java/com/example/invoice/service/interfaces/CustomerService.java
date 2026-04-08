@@ -4,6 +4,7 @@ import com.example.invoice.dto.request.CustomerRequest;
 import com.example.invoice.dto.response.CustomerResponse;
 import com.example.invoice.dto.response.PageResponse;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface CustomerService
@@ -15,4 +16,5 @@ public interface CustomerService
     CustomerResponse getOrCreate(String mobileNumber, String name); // used by POS
     PageResponse<CustomerResponse> getAll(int page, int size);
     PageResponse<CustomerResponse> search(String keyword, int page, int size);
+
 }

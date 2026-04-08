@@ -2,13 +2,21 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 const PAGE_TITLES = {
-  '/dashboard':  { title: 'Dashboard',     subtitle: 'Overview of your business' },
-  '/pos':        { title: 'POS Billing',   subtitle: 'Create new bills quickly' },
-  '/invoices':   { title: 'Invoices',      subtitle: 'Manage all invoices' },
-  '/products':   { title: 'Products',      subtitle: 'Manage your inventory' },
-  '/categories': { title: 'Categories',    subtitle: 'Organise your products' },
-  '/customers':  { title: 'Customers',     subtitle: 'Manage customer records' },
-  '/reports':    { title: 'Reports',       subtitle: 'Sales analytics & insights' },
+  '/dashboard':  { title: 'Dashboard',        subtitle: 'Overview of your business' },
+  '/pos':        { title: 'POS Billing',       subtitle: 'Create new bills quickly' },
+  '/invoices':   { title: 'Invoices',          subtitle: 'Manage all invoices' },
+  '/products':   { title: 'Products',          subtitle: 'Manage your inventory' },
+  '/categories': { title: 'Categories',        subtitle: 'Organise your products' },
+  '/customers':  { title: 'Customers',         subtitle: 'Manage customer records' },
+  '/suppliers':  { title: 'Suppliers',         subtitle: 'Manage your suppliers' },
+  '/purchases':  { title: 'Purchases',         subtitle: 'Restock & purchase orders' },
+  '/expenses':   { title: 'Expenses',          subtitle: 'Track business expenses' },
+  '/payments':   { title: 'Payments & Dues',   subtitle: 'Manage pending payments' },
+  '/returns':    { title: 'Returns & Refunds', subtitle: 'Handle return requests' },
+  '/stock':      { title: 'Stock Management',  subtitle: 'Inventory levels & movements' },
+  '/reports':    { title: 'Reports',           subtitle: 'Sales analytics & insights' },
+  '/settings':   { title: 'Settings',          subtitle: 'Business configuration' },
+  '/users':      { title: 'User Management',   subtitle: 'Manage staff accounts' },
 };
 
 const Navbar = () => {

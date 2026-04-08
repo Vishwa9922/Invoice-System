@@ -1,8 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { getProductsApi, getProductByBarcodeApi } from '../api/productApi';
 import { searchCustomersApi } from '../api/customerApi';
-// import { getCustomerByMobileApi } from '../api/customerApi';
 import { posCheckoutApi } from '../api/posApi';
 import { downloadInvoicePdfApi } from '../api/invoiceApi';
 import Badge  from '../components/common/Badge';
@@ -33,8 +32,16 @@ const POS = () => {
   const [successInvoice,setSuccessInvoice]= useState(null);
   const [showSuccess,   setShowSuccess]   = useState(false);
 
-  const searchRef  = useRef(null);
-  const mobileRef  = useRef(null);
+  // Customer name autocomplete
+  const [customerSuggestions,  setCustomerSuggestions]  = useState([]);
+  const [showCustDropdown,     setShowCustDropdown]     = useState(false);
+  const [custHighlightIdx,     setCustHighlightIdx]     = useState(-1);
+  const [custSearching,        setCustSearching]        = useState(false);
+  const custDebounceRef = useRef(null);
+
+  const searchRef   = useRef(null);
+  const mobileRef   = useRef(null);
+  const custNameRef = useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -48,37 +55,6 @@ const POS = () => {
       }
     })();
   }, []);
-
-  // New function Added for search customer by name in New bill generatation
-
-  const handleCustomerSearch = async () => {
-  if (!customerName || customerName.trim() === '') {
-    toast.error('Customer name is required');
-    return;
-  }
-
-  try {
-    const res = await searchCustomersApi(customerName);
-    const list = res.data.data.content;
-
-    if (list.length > 0) {
-      const found = list[0];
-
-      setCustomer(found);
-      setCustomerName(found.name || '');
-      setMobile(found.mobileNumber || '');
-      setMobileStatus('found');
-
-      toast.success(`Found: ${found.name}`);
-    } else {
-      setCustomer(null);
-      setMobileStatus('new');
-      toast('New customer — will be created', { icon: '👤' });
-    }
-  } catch {
-    toast.error('Search failed');
-  }
-};
 
   const filteredProducts = allProducts.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -121,21 +97,53 @@ const POS = () => {
     setShowDropdown(true);
   };
 
-  // const handleMobileLookup = async () => {
-  //   if (!/^[6-9]\d{9}$/.test(mobile)) { toast.error('Enter valid 10-digit mobile'); return; }
-  //   try {
-  //     const res = await getCustomerByMobileApi(mobile);
-  //     if (res.data.data) {
-  //       setCustomer(res.data.data);
-  //       setCustomerName(res.data.data.name || '');
-  //       setMobileStatus('found');
-  //       toast.success(`Found: ${res.data.data.name || 'No name'}`);
-  //     } else {
-  //       setCustomer(null); setMobileStatus('new');
-  //       toast('New customer — will be created on checkout', { icon: '👤' });
-  //     }
-  //   } catch { setMobileStatus('new'); }
-  // };
+  const handleCustomerNameChange = (e) => {
+    const val = e.target.value;
+    setCustomerName(val);
+    setCustomer(null);
+    setMobile('');
+    setMobileStatus('');
+    setCustHighlightIdx(-1);
+
+    if (custDebounceRef.current) clearTimeout(custDebounceRef.current);
+    if (val.trim().length < 1) { setCustomerSuggestions([]); setShowCustDropdown(false); return; }
+
+    setShowCustDropdown(true);
+    custDebounceRef.current = setTimeout(async () => {
+      setCustSearching(true);
+      try {
+        const res = await searchCustomersApi(val.trim(), 0, 8);
+        setCustomerSuggestions(res.data.data?.content || []);
+      } catch { setCustomerSuggestions([]); }
+      finally { setCustSearching(false); }
+    }, 250);
+  };
+
+  const handleSelectCustomer = (cust) => {
+    setCustomer(cust);
+    setCustomerName(cust.name || '');
+    setMobile(cust.mobileNumber || '');
+    setMobileStatus('found');
+    setShowCustDropdown(false);
+    setCustomerSuggestions([]);
+    toast.success(`✓ ${cust.name} selected`);
+  };
+
+  const handleCustNameKeyDown = (e) => {
+    if (!showCustDropdown || customerSuggestions.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setCustHighlightIdx(prev => Math.min(prev + 1, customerSuggestions.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setCustHighlightIdx(prev => Math.max(prev - 1, -1));
+    } else if (e.key === 'Enter' && custHighlightIdx >= 0) {
+      e.preventDefault();
+      handleSelectCustomer(customerSuggestions[custHighlightIdx]);
+    } else if (e.key === 'Escape') {
+      setShowCustDropdown(false);
+    }
+  };
 
   const addToCart = (product) => {
     if (!product.active) { toast.error('Product is inactive'); return; }
@@ -166,6 +174,7 @@ const POS = () => {
     setCart([]); setDiscount(''); setNotes('');
     setMobile(''); setCustomerName(''); setCustomer(null);
     setMobileStatus(''); setPayment('CASH');
+    setCustomerSuggestions([]); setShowCustDropdown(false);
   };
 
   const subtotal   = cart.reduce((s, i) => s + Number(i.product.price) * i.quantity, 0);
@@ -173,13 +182,8 @@ const POS = () => {
   const grandTotal = Math.max(0, subtotal + totalTax - (Number(discount) || 0));
 
   const handleCheckout = async () => {
-    // if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) { toast.error('Enter valid mobile'); mobileRef.current?.focus(); return; }
-    // new add replace above 
-    if (!customerName || customerName.trim() === '') {
-  toast.error('Customer name is required');
-  return;
-}
-
+    if (!customerName.trim()) { toast.error('Enter customer name'); custNameRef.current?.focus(); return; }
+    if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) { toast.error('Enter valid mobile number'); mobileRef.current?.focus(); return; }
     if (cart.length === 0) { toast.error('Cart is empty'); return; }
     setChecking(true);
     try {
@@ -342,30 +346,75 @@ const POS = () => {
         {/* Customer */}
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">👤 Customer</p>
-          <div className="flex gap-2 mb-2">
-            <input ref={mobileRef} value={mobile}
-              onChange={e => { setMobile(e.target.value); setMobileStatus(''); setCustomer(null); }}
-              onKeyDown={e => e.key === 'Enter' && handleMobileLookup()}
-              placeholder="Mobile number *" maxLength={10}
-              className={`flex-1 px-3 py-2 text-sm border rounded-lg outline-none transition-colors
-                ${mobileStatus==='found' ? 'border-emerald-400 bg-emerald-50' :
-                  mobileStatus==='new'   ? 'border-amber-400 bg-amber-50'    : 'border-gray-300'}`}
-            />
-            <Button size="sm" variant="secondary" onClick={handleCustomerSearch}>Find</Button>
+
+          {/* Name search with autocomplete */}
+          <div className="relative mb-2">
+            <div className="flex items-center gap-2 border rounded-lg px-3 py-2 transition-colors
+              focus-within:border-indigo-500 border-gray-300">
+              <span className="text-gray-400 text-sm">🔍</span>
+              <input
+                ref={custNameRef}
+                value={customerName}
+                onChange={handleCustomerNameChange}
+                onKeyDown={handleCustNameKeyDown}
+                onBlur={() => setTimeout(() => setShowCustDropdown(false), 150)}
+                onFocus={() => customerName.trim() && setShowCustDropdown(true)}
+                placeholder="Customer name *"
+                className="flex-1 text-sm outline-none text-gray-900 placeholder-gray-400"
+                autoComplete="off"
+              />
+              {custSearching && <span className="w-3 h-3 border-2 border-indigo-400/40 border-t-indigo-500 rounded-full animate-spin" />}
+              {customerName && !custSearching && (
+                <button onClick={() => { setCustomerName(''); setMobile(''); setCustomer(null); setMobileStatus(''); setCustomerSuggestions([]); setShowCustDropdown(false); }}
+                  className="text-gray-400 hover:text-gray-600 text-xs">✕</button>
+              )}
+            </div>
+
+            {/* Suggestions dropdown */}
+            {showCustDropdown && customerSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto">
+                {customerSuggestions.map((cust, idx) => (
+                  <div key={cust.id}
+                    onMouseDown={() => handleSelectCustomer(cust)}
+                    onMouseEnter={() => setCustHighlightIdx(idx)}
+                    className={`flex items-center justify-between px-4 py-2.5 cursor-pointer border-b border-gray-50 last:border-0 transition-colors
+                      ${custHighlightIdx === idx ? 'bg-indigo-50' : 'hover:bg-indigo-50'}`}>
+                    <div>
+                      <div className="text-sm font-semibold text-gray-900">{cust.name}</div>
+                      <div className="text-xs text-gray-400">{cust.mobileNumber}</div>
+                    </div>
+                    <span className="text-xs text-indigo-400 font-medium">Select →</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {showCustDropdown && customerName.trim().length >= 1 && customerSuggestions.length === 0 && !custSearching && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 px-4 py-3">
+                <p className="text-xs text-amber-700 font-medium">👤 New customer — will be created on checkout</p>
+              </div>
+            )}
           </div>
+
+          {/* Status badges */}
           {mobileStatus === 'found' && (
             <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2 mb-2">
-              <span>✓</span> {customer?.name || 'No name'} — existing customer
+              <span>✓</span> Existing customer
             </div>
           )}
-          {mobileStatus === 'new' && (
-            <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-2">
-              <span>+</span> New customer — will be created
-            </div>
+
+          {/* Mobile — auto-filled or manual entry for new customer */}
+          <input ref={mobileRef} value={mobile}
+            onChange={e => { if (!customer) { setMobile(e.target.value); setMobileStatus(e.target.value ? 'new' : ''); } }}
+            placeholder="Mobile number *"
+            maxLength={10}
+            readOnly={!!customer}
+            className={`w-full px-3 py-2 text-sm border rounded-lg outline-none transition-colors
+              ${customer ? 'bg-gray-50 text-gray-500 cursor-default border-gray-200' :
+                mobileStatus === 'new' ? 'border-amber-400 bg-amber-50' : 'border-gray-300 focus:border-indigo-500'}`}
+          />
+          {!customer && mobile && !/^[6-9]\d{9}$/.test(mobile) && (
+            <p className="text-xs text-red-500 mt-1">Valid 10-digit mobile required</p>
           )}
-          <input value={customerName} onChange={e => setCustomerName(e.target.value)}
-            placeholder="Customer name *"
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg outline-none focus:border-indigo-500" />
         </div>
 
         {/* Payment */}
