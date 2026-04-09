@@ -24,12 +24,14 @@ public class CategoryController
     private final CategoryService categoryService;
 
     @PostMapping
-    @Operation(summary = "Create a new category")
-    public ResponseEntity<ApiResponse<CategoryResponse>> create(
-            @Valid @RequestBody CategoryRequest request) {
-        CategoryResponse response = categoryService.create(request);
+    @Operation(summary = "Create single or multiple categories")
+    public ResponseEntity<ApiResponse<List<CategoryResponse>>> create(
+            @RequestBody List<CategoryRequest> requests) {
+        List<CategoryResponse> result = requests.stream()
+                .map(categoryService::create)
+                .toList();
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Category created successfully", response));
+                .body(ApiResponse.success("Categories created successfully", result));
     }
 
     @PutMapping("/{id}")
@@ -68,4 +70,5 @@ public class CategoryController
         categoryService.delete(id);
         return ResponseEntity.ok(ApiResponse.success("Category deleted successfully", null));
     }
+
 }
