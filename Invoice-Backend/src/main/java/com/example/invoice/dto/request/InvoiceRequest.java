@@ -25,4 +25,6 @@ public class InvoiceRequest
     private BigDecimal discount = BigDecimal.ZERO;
 
     private String notes;
+
+    private byte[] signatureImage;
 }

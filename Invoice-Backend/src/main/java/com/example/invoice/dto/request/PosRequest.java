@@ -30,4 +30,7 @@ public class PosRequest
     private BigDecimal discount = BigDecimal.ZERO;
 
     private String notes;
+
+    private String signatureBase64;
+
 }

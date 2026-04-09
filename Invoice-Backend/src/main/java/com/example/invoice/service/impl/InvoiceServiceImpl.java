@@ -79,6 +79,8 @@ public class InvoiceServiceImpl implements InvoiceService
                 .grandTotal(grandTotal)
                 .notes(request.getNotes())
                 .status(InvoiceStatus.PAID)
+                .signatureImage(request.getSignatureImage())
+                .receivedAmount(request.getDiscount() != null ? grandTotal : grandTotal)
                 .build();
 
         // Link items to invoice

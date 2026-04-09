@@ -7,6 +7,7 @@ import { downloadInvoicePdfApi } from '../api/invoiceApi';
 import Badge  from '../components/common/Badge';
 import Button from '../components/common/Button';
 import Loader from '../components/common/Loader';
+import SignaturePad from '../components/common/SignaturePad';
 import { formatCurrency } from '../utils/helpers';
 
 const PAYMENT_MODES = ['CASH', 'UPI', 'CARD'];
@@ -21,6 +22,10 @@ const POS = () => {
   const [customerName,  setCustomerName]  = useState('');
   const [customer,      setCustomer]      = useState(null);
   const [mobileStatus,  setMobileStatus]  = useState('');
+
+  // ✅ signature states INSIDE component
+  const [signature,     setSignature]     = useState(null);
+  const [showSignPad,   setShowSignPad]   = useState(false);
   
   const [searchQuery,   setSearchQuery]   = useState('');
   const [allProducts,   setAllProducts]   = useState([]);
@@ -175,6 +180,8 @@ const POS = () => {
     setMobile(''); setCustomerName(''); setCustomer(null);
     setMobileStatus(''); setPayment('CASH');
     setCustomerSuggestions([]); setShowCustDropdown(false);
+    setSignature(null);
+    setShowSignPad(false);
   };
 
   const subtotal   = cart.reduce((s, i) => s + Number(i.product.price) * i.quantity, 0);
@@ -187,6 +194,7 @@ const POS = () => {
     if (cart.length === 0) { toast.error('Cart is empty'); return; }
     setChecking(true);
     try {
+      // ✅ Single checkout call with signature
       const res = await posCheckoutApi({
         mobileNumber: mobile,
         customerName: customerName || undefined,
@@ -194,6 +202,7 @@ const POS = () => {
         paymentMode: payment,
         discount: Number(discount) || 0,
         notes: notes || undefined,
+        signatureBase64: signature || undefined,
       });
       setSuccessInvoice(res.data.data);
       setShowSuccess(true);
@@ -347,7 +356,6 @@ const POS = () => {
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">👤 Customer</p>
 
-          {/* Name search with autocomplete */}
           <div className="relative mb-2">
             <div className="flex items-center gap-2 border rounded-lg px-3 py-2 transition-colors
               focus-within:border-indigo-500 border-gray-300">
@@ -370,7 +378,6 @@ const POS = () => {
               )}
             </div>
 
-            {/* Suggestions dropdown */}
             {showCustDropdown && customerSuggestions.length > 0 && (
               <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto">
                 {customerSuggestions.map((cust, idx) => (
@@ -395,14 +402,12 @@ const POS = () => {
             )}
           </div>
 
-          {/* Status badges */}
           {mobileStatus === 'found' && (
             <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2 mb-2">
               <span>✓</span> Existing customer
             </div>
           )}
 
-          {/* Mobile — auto-filled or manual entry for new customer */}
           <input ref={mobileRef} value={mobile}
             onChange={e => { if (!customer) { setMobile(e.target.value); setMobileStatus(e.target.value ? 'new' : ''); } }}
             placeholder="Mobile number *"
@@ -469,6 +474,37 @@ const POS = () => {
           <textarea value={notes} onChange={e => setNotes(e.target.value)}
             placeholder="Any special instructions..." rows={2}
             className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg outline-none resize-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" />
+        </div>
+
+        {/* Signature */}
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">✍️ Signature</p>
+
+          {signature ? (
+            <div className="border border-emerald-200 bg-emerald-50 rounded-xl p-3">
+              <img src={signature} alt="Signature" className="max-h-16 mx-auto object-contain mb-2" />
+              <div className="flex gap-2">
+                <button onClick={() => setShowSignPad(true)}
+                  className="flex-1 py-1.5 text-xs font-semibold border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">
+                  ✏️ Redo
+                </button>
+                <button onClick={() => setSignature(null)}
+                  className="flex-1 py-1.5 text-xs font-semibold border border-red-200 rounded-lg text-red-500 hover:bg-red-50">
+                  🗑️ Remove
+                </button>
+              </div>
+            </div>
+          ) : showSignPad ? (
+            <SignaturePad
+              onSave={(dataUrl) => { setSignature(dataUrl); setShowSignPad(false); }}
+              onClose={() => setShowSignPad(false)}
+            />
+          ) : (
+            <button onClick={() => setShowSignPad(true)}
+              className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-400 hover:border-indigo-400 hover:text-indigo-500 transition-colors">
+              ✍️ Add Signature
+            </button>
+          )}
         </div>
 
         {/* Checkout */}

@@ -79,4 +79,11 @@ public class Invoice
     @Column(precision = 10, scale = 2)
     @Builder.Default
     private BigDecimal paidAmount = BigDecimal.ZERO;
+
+    @Column(name = "signature_image", columnDefinition = "BYTEA")
+    private byte[] signatureImage;
+
+    @Column(name = "received_amount", precision = 10, scale = 2)
+    @Builder.Default
+    private BigDecimal receivedAmount = BigDecimal.ZERO;
 }

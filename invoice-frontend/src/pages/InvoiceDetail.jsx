@@ -6,6 +6,7 @@ import Button from '../components/common/Button';
 import Badge  from '../components/common/Badge';
 import Loader from '../components/common/Loader';
 import { formatCurrency, formatDateTime } from '../utils/helpers';
+import SignaturePad from '../components/common/SignaturePad';
 
 const InvoiceDetail = () => {
   const { id }   = useParams();
@@ -16,6 +17,9 @@ const InvoiceDetail = () => {
   const [cancelling, setCancelling] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
+  const [signature,     setSignature]     = useState(null);
+  const [signMode,      setSignMode]      = useState(''); // 'pad' | 'upload' | ''
+  const [showSignPanel, setShowSignPanel] = useState(false);
 
   useEffect(() => { fetchInvoice(); }, [id]);
 
@@ -48,6 +52,18 @@ const InvoiceDetail = () => {
     } catch { toast.error('PDF failed'); }
     finally  { setPdfLoading(false); }
   };
+
+  const handleSignatureUpload = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    setSignature(ev.target.result);
+    setShowSignPanel(false);
+    toast.success('Signature added!');
+  };
+  reader.readAsDataURL(file);
+};
 
   if (loading) return <Loader fullPage />;
   if (!invoice) return null;
@@ -205,6 +221,56 @@ const InvoiceDetail = () => {
               </Button>
             )}
           </div>
+
+          {/* Signature Card */}
+<div className="bg-white rounded-xl border border-gray-200 p-5">
+  <h3 className="text-sm font-bold text-gray-900 mb-3 pb-3 border-b border-gray-100">
+    ✍️ Signature
+  </h3>
+
+  {signature ? (
+    <div className="space-y-3">
+      <div className="border border-gray-200 rounded-lg p-3 bg-gray-50 flex items-center justify-center">
+        <img src={signature} alt="Signature" className="max-h-20 object-contain" />
+      </div>
+      <div className="flex gap-2">
+        <Button variant="secondary" size="sm" fullWidth
+          onClick={() => { setSignature(null); setShowSignPanel(false); }}>
+          Remove
+        </Button>
+        <Button size="sm" fullWidth loading={pdfLoading} onClick={handlePdf}>
+          📥 PDF with Sign
+        </Button>
+      </div>
+    </div>
+  ) : (
+    <div className="space-y-2">
+      {!showSignPanel ? (
+        <>
+          <button
+            onClick={() => { setShowSignPanel(true); setSignMode('pad'); }}
+            className="w-full py-2.5 text-sm font-medium border-2 border-dashed border-indigo-200 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors"
+          >
+            ✍️ Draw Signature
+          </button>
+          <label className="w-full py-2.5 text-sm font-medium border-2 border-dashed border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer flex items-center justify-center">
+            📁 Upload Signature
+            <input type="file" accept="image/*" onChange={handleSignatureUpload} className="hidden" />
+          </label>
+        </>
+      ) : (
+        <SignaturePad
+          onSave={(dataUrl) => {
+            setSignature(dataUrl);
+            setShowSignPanel(false);
+            toast.success('Signature saved!');
+          }}
+          onClose={() => setShowSignPanel(false)}
+        />
+      )}
+    </div>
+  )}
+</div>
         </div>
       </div>
 
