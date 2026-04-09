@@ -13,6 +13,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/products")
 @RequiredArgsConstructor
@@ -22,12 +24,14 @@ public class ProductController
     private final ProductService productService;
 
     @PostMapping
-    @Operation(summary = "Create a new product")
-    public ResponseEntity<ApiResponse<ProductResponse>> create(
-            @Valid @RequestBody ProductRequest request) {
+    @Operation(summary = "Create single or multiple products")
+    public ResponseEntity<ApiResponse<List<ProductResponse>>> create(
+            @RequestBody List<ProductRequest> requests) {
+        List<ProductResponse> result = requests.stream()
+                .map(productService::create)
+                .toList();
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Product created successfully",
-                        productService.create(request)));
+                .body(ApiResponse.success("Products created successfully", result));
     }
 
     @PutMapping("/{id}")
